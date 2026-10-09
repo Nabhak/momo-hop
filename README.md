@@ -11,63 +11,29 @@
 </p>
 
 <p align="center">
-  Hop into any project in one click.<br>
-  A small native Mac app that lists your project folders and opens the one you pick in your terminal or editor, already running your AI coding tool.
+  <b>Hop into any project in one click.</b><br>
+  A small Mac app that lists your projects and opens the one you pick in your terminal or editor, with your AI coding tool already running.
 </p>
 
 <p align="center">
   <img src="assets/screenshot.png" width="560" alt="Momo Hop window: project list with Claude and Codex badges, and the Open with / in / and bar">
 </p>
 
-Works with **Claude Code, Codex CLI, Gemini CLI, OpenCode, Aider and Cursor**, in **Terminal, Ghostty, Alacritty, VS Code, Zed, Xcode** and more. A project switcher and AI coding session launcher for macOS.
+Works with **Claude Code, Codex CLI, Gemini CLI, OpenCode, Aider and Cursor**, in **Terminal, Ghostty, Alacritty, VS Code, Zed, Xcode** and more.
 
----
+## What it does
 
-## Why
-
-You work on many projects and use more than one AI coding tool. Getting back into a project usually means: open a terminal, `cd` somewhere, remember which tool you used there, type its command, maybe resume the last chat.
-
+Getting back into a project usually means: open a terminal, `cd` somewhere, remember which AI tool you used, type its command, resume the chat.
 Momo Hop turns that into: **pick a project, press Enter.**
 
-```
-Open  with [Claude ▾]  in [Ghostty ▾]  and [continue last chat ▾]        [ Open ]
-```
-
-## Features
-
-- **One list for all your AI tools.** Projects come from the history of Claude Code, Codex, Gemini CLI, OpenCode, Aider and Cursor. Each row shows which tools you used there and when.
-- **Also lists folders you have never opened with an AI**, so you can start fresh anywhere.
-- **Open it where you like.** Terminal, Ghostty, Alacritty, or an app: VS Code, Cursor, Windsurf, Zed, Sublime Text, Nova, Xcode, the Codex desktop app.
-- **Picks up where you left off.** Continue the last chat, or ask for a short recap of the last session, or start a new chat.
-- **Remembers your choices** (tool, destination, mode) for next time.
-- **Only shows what you have.** Tools and apps that are not installed on your Mac are hidden. Nothing to configure.
-- **Private.** Everything is read locally. No network access, no accounts, no analytics.
-
-## Supported tools
-
-| Tool | Shows history | Launch | Continue last chat | Recap |
-|---|:-:|:-:|:-:|:-:|
-| [Claude Code](https://docs.claude.com/en/docs/claude-code) | ✅ | ✅ | ✅ | ✅ |
-| [Codex CLI](https://github.com/openai/codex) | ✅ | ✅ | ✅ | – |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | ✅ | ✅ | – | – |
-| [OpenCode](https://opencode.ai) | ✅ ¹ | ✅ | ✅ | – |
-| [Aider](https://aider.chat) | ✅ | ✅ | ✅ | – |
-| Cursor | ✅ | open as app | – | – |
-
-¹ OpenCode's on-disk format is read on a best-effort basis; if it changes, the OpenCode badge simply won't appear.
-
-**Open in app:** VS Code, Cursor, Windsurf, Zed, Sublime Text, Nova, Xcode, Codex desktop app.
-Claude Desktop cannot open a given folder from outside today ([anthropics/claude-code#54614](https://github.com/anthropics/claude-code/issues/54614)).
-
-**Terminals:** Ghostty (new tab in your front window), Terminal and Alacritty (new window).
+- **One list for all your AI tools.** Built from each tool's own history. Each row shows which tools you used there, and when.
+- **Choose how to open it.** Which tool, which terminal or app, and whether to continue the last chat, recap it, or start fresh.
+- **Remembers your choices.** Hides tools you don't have installed.
+- **Private.** Everything is read locally. No network, no accounts, no analytics.
 
 ## Install
 
-Requires macOS 14 or later. Apple Silicon and Intel.
-
-### Build from source
-
-You need the Xcode Command Line Tools (`xcode-select --install`). No Xcode project, no dependencies.
+Needs macOS 14+ and the Xcode Command Line Tools (`xcode-select --install`). No dependencies.
 
 ```bash
 git clone https://github.com/Nabhak/momo-hop.git
@@ -75,76 +41,68 @@ cd momo-hop
 ./build.sh
 ```
 
-This builds a universal app to `~/Applications/Momo Hop.app` and a zip at `dist/Momo-Hop.zip`.
+The app is built to `~/Applications/Momo Hop.app`, plus a zip in `dist/`.
 
-### Using a zip on another Mac
-
-The app is ad-hoc signed, not notarized. macOS will block it the first time. After moving it to `/Applications`:
+A zip copied to another Mac is not notarized, so macOS blocks it at first. Run:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Momo Hop.app"
 ```
 
-or open **System Settings → Privacy & Security → Open Anyway**.
+## Use
 
-## Usage
+1. Open Momo Hop and type to filter.
+2. Double-click a project, or select it and press Enter.
+3. Use the bar at the bottom to change **with** (AI tool), **in** (terminal or app) and **and** (continue, recap, new chat).
+4. Missing a project? Use the **＋** button to add a folder, or a folder of projects.
 
-1. Open Momo Hop. Type to filter the list.
-2. Select a project. Double-click it or press Enter to open with your last settings.
-3. Change the bar at the bottom to open it differently: another AI tool (**with**), another terminal or app (**in**), a different start (**and**).
+<details>
+<summary><b>Supported tools and apps</b></summary>
 
-Add projects that are not listed with the **＋** button:
+| Tool | Shows history | Continue last chat | Recap |
+|---|:-:|:-:|:-:|
+| [Claude Code](https://docs.claude.com/en/docs/claude-code) | ✅ | ✅ | ✅ |
+| [Codex CLI](https://github.com/openai/codex) | ✅ | ✅ | – |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | ✅ | – | – |
+| [OpenCode](https://opencode.ai) | ✅ | ✅ | – |
+| [Aider](https://aider.chat) | ✅ | ✅ | – |
+| Cursor | ✅ | opens as app | – |
 
-- **Add project…** adds one folder.
-- **Add folder of projects…** adds a folder whose sub-folders are all projects.
+**Terminals:** Ghostty (new tab), Terminal and Alacritty (new window).
+**Apps:** VS Code, Cursor, Windsurf, Zed, Sublime Text, Nova, Xcode, Codex desktop app.
 
-Folders are also found automatically in `~/Documents/GitHub`, `~/GitHub`, `~/Developer`, `~/Projects`, `~/Code`, `~/dev`, `~/src`, `~/repos` and `~/Sites`.
+</details>
 
-### Recap
+<details>
+<summary><b>How it works, permissions and limits</b></summary>
 
-For Claude, "recap last session" continues the last chat and asks Claude to summarise where you left off. If you have your own `/recall` skill in `~/.claude/skills/recall`, that is used instead.
+- Reads each tool's history files (`~/.claude/projects`, `~/.codex/sessions`, `~/.gemini/projects.json`, `~/.local/share/opencode`, `.aider.chat.history.md`, Cursor's recent workspaces). Also finds folders in `~/Documents/GitHub`, `~/Developer`, `~/Projects`, `~/Code` and similar.
+- Writes a small temporary launch script and opens it in your terminal, so folder names are never pasted into a shell command.
+- macOS may ask for **Automation → Ghostty** (to open a tab) and **Documents folder** access. The app is ad-hoc signed, so each rebuild may ask again.
+- History formats belong to each tool and may change. A missing badge is the worst case, never a crash.
+- Tested on macOS 26, Apple Silicon. Intel and older macOS are untested.
+- Claude Desktop can't open a given folder from outside yet ([anthropics/claude-code#54614](https://github.com/anthropics/claude-code/issues/54614)).
 
-## How it works
+</details>
 
-- Reads each tool's own history files to learn which folders you used it in (`~/.claude/projects`, `~/.codex/sessions`, `~/.gemini/projects.json`, `~/.local/share/opencode`, `.aider.chat.history.md`, Cursor's recent workspaces).
-- Writes a small temporary launch script and opens it in the terminal you chose, so folder names are never pasted into a shell command.
-- For Ghostty it uses AppleScript to add a tab; for Terminal and Alacritty it opens a window.
-
-## Permissions
-
-macOS may ask for:
-
-- **Automation → Ghostty**, to open a tab (only if you use Ghostty).
-- **Documents folder**, to list projects in `~/Documents`.
-
-Because the app is ad-hoc signed, each rebuilt version is a new app to macOS and may ask again.
-
-## Known limits
-
-- History formats are internal to each tool and may change. The app fails quietly: a missing badge, never a crash.
-- A custom `CLAUDE_CONFIG_DIR` is not visible to GUI apps; only `~/.claude` is read.
-- Terminal and Alacritty open a new window, not a tab (neither can be scripted to add one without extra permissions).
-- Tested on macOS 26 on Apple Silicon. Intel, older macOS, and the less common terminals/editors are untested.
-
-## Development
-
-```bash
-./build.sh                                                         # build + install + zip
-"$HOME/Applications/Momo Hop.app/Contents/MacOS/MomoHop" --dump    # print the project list and exit
-swiftc -o /tmp/mkicon make-icon.swift && /tmp/mkicon /tmp/AppIcon.iconset   # redraw the icon PNGs
-```
+<details>
+<summary><b>Development</b></summary>
 
 The whole app is one file, `main.swift`. To add an AI tool: add a case to `AI`, a history reader in `Backend`, and a launch command in `Launcher.command`.
 
-## Disclaimer
+```bash
+./build.sh                                                        # build + install + zip
+"$HOME/Applications/Momo Hop.app/Contents/MacOS/MomoHop" --dump   # print the project list and exit
+```
 
-Momo Hop is an independent project. It is not affiliated with or endorsed by Anthropic, OpenAI, Google, Cursor, or any other tool it works with. Product names belong to their owners.
+</details>
 
 ## License and credit
 
-Momo Hop is free software under the [GNU General Public License v3.0](LICENSE) (or any later version).
-You may use, change and share it. If you share a modified version, you must share its source under the same license and keep the copyright notices, including this project's.
+Free software under the [GNU GPL v3.0](LICENSE) or later. You may use, change and share it. If you share a modified version, you must share its source under the same license and keep the copyright notices.
 
-**Credit:** if you build on Momo Hop, please say so, for example "Based on [Momo Hop](https://github.com/Nabhak/momo-hop) by Nabhak" in your README or About screen. The license requires keeping the copyright notice in the code; mentioning the original in your README is the polite and appreciated part.
+**Credit:** if you build on Momo Hop, please say so, for example "Based on [Momo Hop](https://github.com/Nabhak/momo-hop) by Nabhak".
+
+Momo Hop is an independent project, not affiliated with Anthropic, OpenAI, Google, Cursor or any other tool it works with. Product names belong to their owners.
 
 Copyright © 2026 Nabhak.
