@@ -1,3 +1,12 @@
+// Momo Hop: one-click project launcher for macOS.
+// Copyright (C) 2026 Nabhak <https://github.com/Nabhak/momo-hop>
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of the
+// GNU General Public License as published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version. It is distributed WITHOUT ANY WARRANTY; see the
+// GNU General Public License (LICENSE) for details. Derivative works must keep this notice.
+
 import AppKit
 
 // Draws the app icon (folder + sparkle on warm squircle) -> AppIcon.iconset PNGs. Run via build-icon.sh.

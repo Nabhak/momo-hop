@@ -5,9 +5,17 @@
 <h1 align="center">Momo Hop</h1>
 
 <p align="center">
+  <a href="LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue"></a>
+  <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-lightgrey">
+  <img alt="Swift" src="https://img.shields.io/badge/Swift-SwiftUI-orange">
+</p>
+
+<p align="center">
   Hop into any project in one click.<br>
   A small native Mac app that lists your project folders and opens the one you pick in your terminal or editor, already running your AI coding tool.
 </p>
+
+Works with **Claude Code, Codex CLI, Gemini CLI, OpenCode, Aider and Cursor**, in **Terminal, Ghostty, Alacritty, VS Code, Zed, Xcode** and more. A project switcher and AI coding session launcher for macOS.
 
 ---
 
@@ -128,6 +136,11 @@ The whole app is one file, `main.swift`. To add an AI tool: add a case to `AI`, 
 
 Momo Hop is an independent project. It is not affiliated with or endorsed by Anthropic, OpenAI, Google, Cursor, or any other tool it works with. Product names belong to their owners.
 
-## License
+## License and credit
 
-[MIT](LICENSE)
+Momo Hop is free software under the [GNU General Public License v3.0](LICENSE) (or any later version).
+You may use, change and share it. If you share a modified version, you must share its source under the same license and keep the copyright notices, including this project's.
+
+**Credit:** if you build on Momo Hop, please say so, for example "Based on [Momo Hop](https://github.com/Nabhak/momo-hop) by Nabhak" in your README or About screen. The license requires keeping the copyright notice in the code; mentioning the original in your README is the polite and appreciated part.
+
+Copyright © 2026 Nabhak.

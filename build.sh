@@ -1,4 +1,5 @@
 #!/bin/bash
+# Copyright (C) 2026 Nabhak. SPDX-License-Identifier: GPL-3.0-or-later
 # Build ~/Applications/Momo Hop.app from main.swift (ad-hoc signed).
 set -e
 cd "$(dirname "$0")"
@@ -21,6 +22,7 @@ cat > "$APP/Contents/Info.plist" <<'PL'
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundleName</key><string>Momo Hop</string>
 <key>CFBundlePackageType</key><string>APPL</string>
+<key>NSHumanReadableCopyright</key><string>Copyright © 2026 Nabhak. GPL-3.0-or-later.</string>
 <key>CFBundleShortVersionString</key><string>1.0</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
