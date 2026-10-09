@@ -15,6 +15,10 @@
   A small native Mac app that lists your project folders and opens the one you pick in your terminal or editor, already running your AI coding tool.
 </p>
 
+<p align="center">
+  <img src="assets/screenshot.png" width="560" alt="Momo Hop window: project list with Claude and Codex badges, and the Open with / in / and bar">
+</p>
+
 Works with **Claude Code, Codex CLI, Gemini CLI, OpenCode, Aider and Cursor**, in **Terminal, Ghostty, Alacritty, VS Code, Zed, Xcode** and more. A project switcher and AI coding session launcher for macOS.
 
 ---
