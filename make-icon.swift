@@ -9,67 +9,32 @@
 
 import AppKit
 
-// Draws the app icon (folder + sparkle on warm squircle) -> AppIcon.iconset PNGs. Run via build-icon.sh.
+// Builds AppIcon.iconset PNGs from assets/logo-source.png (the logo art) placed on the macOS icon grid
+// (824pt squircle plate in a 1024 canvas, soft shadow).
+// Usage: swift make-icon.swift /tmp/AppIcon.iconset && iconutil -c icns /tmp/AppIcon.iconset -o AppIcon.icns
 let S: CGFloat = 1024
+let here = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+guard let logo = NSImage(contentsOf: here.appendingPathComponent("assets/logo-source.png")) else {
+    fatalError("assets/logo-source.png not found")
+}
 let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(S), pixelsHigh: Int(S), bitsPerSample: 8,
                            samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
                            bytesPerRow: 0, bitsPerPixel: 0)!
 NSGraphicsContext.saveGraphicsState()
 NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+NSGraphicsContext.current!.imageInterpolation = .high
 let ctx = NSGraphicsContext.current!.cgContext
 
-func color(_ hex: UInt32, _ a: CGFloat = 1) -> NSColor {
-    NSColor(red: CGFloat((hex >> 16) & 255) / 255, green: CGFloat((hex >> 8) & 255) / 255, blue: CGFloat(hex & 255) / 255, alpha: a)
-}
-
-// squircle plate (macOS icon grid: 824pt in 1024 canvas)
 let plate = NSRect(x: 100, y: 100, width: 824, height: 824)
 let platePath = NSBezierPath(roundedRect: plate, xRadius: 185, yRadius: 185)
 ctx.saveGState()
 ctx.setShadow(offset: CGSize(width: 0, height: -14), blur: 28, color: NSColor.black.withAlphaComponent(0.30).cgColor)
-color(0xF0603A).setFill(); platePath.fill()
+NSColor(red: 1, green: 0.45, blue: 0.02, alpha: 1).setFill(); platePath.fill()
 ctx.restoreGState()
 ctx.saveGState()
 platePath.addClip()
-NSGradient(starting: color(0xFFB36B), ending: color(0xEE5A3C))!.draw(in: plate, angle: -90)
-// soft top highlight
-NSGradient(starting: NSColor.white.withAlphaComponent(0.22), ending: NSColor.white.withAlphaComponent(0))!
-    .draw(in: NSRect(x: 100, y: 520, width: 824, height: 404), angle: -90)
+logo.draw(in: plate, from: .zero, operation: .sourceOver, fraction: 1)
 ctx.restoreGState()
-
-// folder
-let fx: CGFloat = 512 - 270, fy: CGFloat = 330, fw: CGFloat = 540, fh: CGFloat = 340
-ctx.saveGState()
-ctx.setShadow(offset: CGSize(width: 0, height: -12), blur: 24, color: NSColor.black.withAlphaComponent(0.22).cgColor)
-// back panel with tab
-let back = NSBezierPath()
-back.append(NSBezierPath(roundedRect: NSRect(x: fx, y: fy + 20, width: fw, height: fh - 10), xRadius: 40, yRadius: 40))
-back.append(NSBezierPath(roundedRect: NSRect(x: fx, y: fy + fh - 40, width: 210, height: 80), xRadius: 34, yRadius: 34))
-NSColor.white.withAlphaComponent(0.62).setFill(); back.fill()
-ctx.restoreGState()
-// front panel
-ctx.saveGState()
-ctx.setShadow(offset: CGSize(width: 0, height: -8), blur: 18, color: NSColor.black.withAlphaComponent(0.18).cgColor)
-NSColor.white.setFill()
-NSBezierPath(roundedRect: NSRect(x: fx, y: fy - 10, width: fw, height: fh - 70), xRadius: 40, yRadius: 40).fill()
-ctx.restoreGState()
-
-// sparkle (4-point star), top right of folder
-func star(_ c: CGPoint, _ r: CGFloat, _ fill: NSColor) {
-    let k = r * 0.13
-    let p = NSBezierPath()
-    p.move(to: CGPoint(x: c.x, y: c.y + r))
-    p.curve(to: CGPoint(x: c.x + r, y: c.y), controlPoint1: CGPoint(x: c.x + k, y: c.y + k), controlPoint2: CGPoint(x: c.x + k, y: c.y + k))
-    p.curve(to: CGPoint(x: c.x, y: c.y - r), controlPoint1: CGPoint(x: c.x + k, y: c.y - k), controlPoint2: CGPoint(x: c.x + k, y: c.y - k))
-    p.curve(to: CGPoint(x: c.x - r, y: c.y), controlPoint1: CGPoint(x: c.x - k, y: c.y - k), controlPoint2: CGPoint(x: c.x - k, y: c.y - k))
-    p.curve(to: CGPoint(x: c.x, y: c.y + r), controlPoint1: CGPoint(x: c.x - k, y: c.y + k), controlPoint2: CGPoint(x: c.x - k, y: c.y + k))
-    fill.setFill(); p.fill()
-}
-ctx.saveGState()
-ctx.setShadow(offset: CGSize(width: 0, height: -6), blur: 14, color: NSColor.black.withAlphaComponent(0.25).cgColor)
-star(CGPoint(x: 700, y: 640), 120, color(0xFFD23F))
-ctx.restoreGState()
-star(CGPoint(x: 800, y: 760), 46, NSColor.white)
 NSGraphicsContext.restoreGraphicsState()
 
 let out = CommandLine.arguments[1]
