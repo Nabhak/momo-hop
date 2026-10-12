@@ -511,6 +511,9 @@ struct Row: View {
         }
         .padding(.vertical, 5)
         .contentShape(Rectangle())
+        // Pin the row separator to the full row width. Without this, the "running" label shifts it to start at the status column.
+        .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+        .alignmentGuide(.listRowSeparatorTrailing) { $0[.trailing] }
     }
 }
 
