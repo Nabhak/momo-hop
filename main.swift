@@ -565,6 +565,7 @@ struct ContentView: View {
     @AppStorage("dest") private var destRaw = ""  // last destination used; "termApp" is the pre-1.1 key
     @AppStorage("termApp") private var termRaw = ""
     @AppStorage("extraRoots") private var extraJSON = "[]"
+    @AppStorage("skipRunningConfirm") private var skipRunningConfirm = false  // set by "Don't ask me again"
 
     var tool: AI { m.tools.first { $0.rawValue == toolRaw } ?? m.tools[0] }
     var modes: [Mode] { Mode.available(for: tool) }
@@ -599,15 +600,45 @@ struct ContentView: View {
         }
     }
 
-    /// True when the chosen tool already runs in this project (terminal opens only): Open is held back until "Open Another".
+    /// True when the chosen tool already runs in this project (terminal opens only): Open asks first, unless "Don't ask me again" was chosen.
     func isGuarded(_ p: Project) -> Bool { isTerminal && p.liveTools.contains(tool) }
     var guarded: Bool { selected.map(isGuarded) ?? false }
 
     func openSelected(_ ids: Set<String>, anyway: Bool = false) {
-        guard let p = m.projects.first(where: { ids.contains($0.id) }), anyway || !isGuarded(p) else { return }
+        guard let p = m.projects.first(where: { ids.contains($0.id) }) else { return }
+        if !anyway && !skipRunningConfirm && isGuarded(p) { confirmOpen(p, ids); return }
         switch dest {
         case .term(let t): m.open(p, ai: tool, mode: mode, app: t)
         case .app(let e): m.openEditor(p, editor: e)
+        }
+    }
+    /// "Already running" confirmation, as a sheet on the window. Cancel is the default (Return / Esc).
+    /// The "Don't ask me again" tick is saved only when the user goes on with Open Anyway.
+    func confirmOpen(_ p: Project, _ ids: Set<String>) {
+        let alert = NSAlert()
+        alert.messageText = "\(tool.rawValue) is already running in \(p.name)"
+        alert.informativeText = "Open another session anyway?"
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Open Anyway")
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = "Don't ask me again"
+        // NSAlert re-assigns key equivalents when shown and gives Return to no button here, so Return / Enter / Esc are caught directly.
+        let keys = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
+            guard [36, 76, 53].contains(e.keyCode), e.window == alert.window else { return e }
+            alert.buttons[0].performClick(nil)
+            return nil
+        }
+        let done: (NSApplication.ModalResponse) -> Void = { r in
+            if let keys { NSEvent.removeMonitor(keys) }
+            guard r == .alertSecondButtonReturn else { return }
+            if alert.suppressionButton?.state == .on { skipRunningConfirm = true }
+            openSelected(ids, anyway: true)
+        }
+        if let w = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: \.isVisible) {
+            alert.beginSheetModal(for: w, completionHandler: done)
+            alert.buttons[0].keyEquivalent = "\r"  // after showing, so Cancel is drawn as the default button
+        } else {
+            done(alert.runModal())
         }
     }
     func addFolder(single: Bool) {
@@ -638,6 +669,7 @@ struct ContentView: View {
                     }
                     Divider()
                     Button("Reload list") { m.load(extraRoots: extraRoots) }
+                    Toggle("Ask before opening a running project", isOn: Binding(get: { !skipRunningConfirm }, set: { skipRunningConfirm = !$0 }))
                 } label: { Image(systemName: "plus.circle").font(.title3) }
                 .menuStyle(.borderlessButton).fixedSize().help("Add a project or folder")
             }
@@ -693,25 +725,19 @@ struct ContentView: View {
                         .labelsHidden().pickerStyle(.menu).fixedSize()
                     }
                     Spacer()
-                    // Guarded: the slot holds a plain (non-default) "Open Another", so Return / double-click never start a second session.
-                    if guarded {
-                        Button("Open Another") { openSelected(sel, anyway: true) }
-                            .controlSize(.large).fixedSize().help("Start a second \(tool.rawValue) session in this folder")
-                    } else {
-                        Button("Open") { openSelected(sel) }
-                            .keyboardShortcut(.defaultAction).controlSize(.large).disabled(sel.isEmpty)
-                    }
+                    Button("Open") { openSelected(sel) }
+                        .keyboardShortcut(.defaultAction).controlSize(.large).disabled(sel.isEmpty)
                 }
                 // Status line: always one caption line, so the bar keeps its height in every state.
                 HStack(spacing: 6) {
                     if guarded { RunningDot() }
-                    Text(guarded ? "\(tool.rawValue) is already running in this folder." : sel.isEmpty ? "Select a project above." : hint)
+                    Text(guarded ? "\(tool.rawValue) is already running here." : sel.isEmpty ? "Select a project above." : hint)
                 }
                 .font(.caption).foregroundStyle(.secondary)
             }
             .padding(12)
         }
-        .frame(minWidth: 680, minHeight: 480)  // 680: room for "Open Another" next to the longest sentence
+        .frame(minWidth: 640, minHeight: 480)
         .tint(accent)
         .task {
             Launcher.sweepTemp()
