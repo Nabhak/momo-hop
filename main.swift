@@ -489,6 +489,27 @@ final class Model: ObservableObject {
     }
 }
 
+/// "Running" pill: green dot + label on a faint green capsule, same size family as the tool tags.
+/// On a selected row (accent highlight behind) it turns into a translucent white pill with white text, like the tags.
+struct RunningBadge: View {
+    let tools: Set<AI>
+    @Environment(\.backgroundProminence) private var prominence
+    var body: some View {
+        let onAccent = prominence == .increased
+        let ink = Color(nsColor: .alternateSelectedControlTextColor)
+        HStack(spacing: 4) {
+            Circle().fill(.green).frame(width: 6, height: 6)
+                .background { if onAccent { Circle().fill(ink).padding(-1) } }  // white rim keeps the green dot visible on blue
+            Text("Running")
+        }
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(onAccent ? AnyShapeStyle(ink) : AnyShapeStyle(Color.primary))
+        .padding(.leading, 5).padding(.trailing, 7).padding(.vertical, 2)
+        .background(onAccent ? AnyShapeStyle(ink.opacity(0.22)) : AnyShapeStyle(.green.opacity(0.16)), in: Capsule())
+        .help(tools.map(\.rawValue).sorted().joined(separator: " and ") + " running in this folder")
+    }
+}
+
 struct Row: View {
     let p: Project
     var body: some View {
@@ -505,9 +526,7 @@ struct Row: View {
                 Text(p.folder).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
             }
             Spacer()
-            if p.live {
-                Label("running", systemImage: "circle.fill").font(.caption).foregroundStyle(.green)
-            }
+            if p.live { RunningBadge(tools: p.liveTools) }
             Group {
                 if p.seen { Text(p.lastActive, format: .relative(presentation: .named)) } else { Text("not opened yet") }
             }
