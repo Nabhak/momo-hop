@@ -60,8 +60,9 @@ enum AI: String, CaseIterable, Identifiable, Hashable {
 struct Project: Identifiable, Hashable {
     let path: String
     let lastActive: Date
-    let live: Bool
+    let liveTools: Set<AI>  // AI tools running here right now (only claude/codex are detectable)
     let used: [AI: Date]  // AI tools that have worked in this folder
+    var live: Bool { !liveTools.isEmpty }
     var seen: Bool { !used.isEmpty }
     var id: String { path }
     var name: String { path == home ? "~" : URL(fileURLWithPath: path).lastPathComponent }
@@ -221,18 +222,21 @@ enum Backend {
         return found
     }
 
-    /// Project roots that have an interactive claude/codex running right now.
-    static func liveRoots() -> Set<String> {
-        var pids: [String] = []
+    /// Project roots that have an interactive claude/codex running right now, with which of the two.
+    static func liveRoots() -> [String: Set<AI>] {
+        let detectable: [String: AI] = ["claude": .claude, "codex": .codex]
+        var tools: [String: AI] = [:]  // pid -> tool
         for line in runCapture("/bin/ps", ["-axo", "pid=,tty=,comm="]).split(separator: "\n") {
             let f = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
-            if f.count == 3, f[1].hasPrefix("ttys"), ["claude", "codex"].contains((String(f[2]).trimmingCharacters(in: .whitespaces) as NSString).lastPathComponent) { pids.append(String(f[0])) }
+            if f.count == 3, f[1].hasPrefix("ttys"),
+               let ai = detectable[(String(f[2]).trimmingCharacters(in: .whitespaces) as NSString).lastPathComponent] { tools[String(f[0])] = ai }
         }
-        if pids.isEmpty { return [] }
-        var roots = Set<String>()
-        for line in runCapture("/usr/sbin/lsof", ["-a", "-d", "cwd", "-p", pids.joined(separator: ","), "-Fn"]).split(separator: "\n")
-        where line.hasPrefix("n/") {
-            roots.insert(real(projectRoot(String(line.dropFirst()))))
+        if tools.isEmpty { return [:] }
+        var roots: [String: Set<AI>] = [:]
+        var cur: AI?  // lsof -F prints a "p<pid>" line before each process's "n<path>" line
+        for line in runCapture("/usr/sbin/lsof", ["-a", "-d", "cwd", "-p", tools.keys.joined(separator: ","), "-Fpn"]).split(separator: "\n") {
+            if line.hasPrefix("p") { cur = tools[String(line.dropFirst())] }
+            else if line.hasPrefix("n/"), let ai = cur { roots[real(projectRoot(String(line.dropFirst()))), default: []].insert(ai) }
         }
         return roots
     }
@@ -275,11 +279,11 @@ enum Backend {
             }
         }
         let live = liveRoots()
-        var rows = roots.map { Project(path: $0.key, lastActive: $0.value.last, live: live.contains(real($0.key)), used: $0.value.used) }
+        var rows = roots.map { Project(path: $0.key, lastActive: $0.value.last, liveTools: live[real($0.key)] ?? [], used: $0.value.used) }
         var known = Set(rows.map { real($0.path) })
         for (d, m) in scanFolders(extraRoots: extraRoots) where !known.contains(real(d)) {
             known.insert(real(d))
-            rows.append(Project(path: d, lastActive: m, live: false, used: [:]))
+            rows.append(Project(path: d, lastActive: m, liveTools: [], used: [:]))
         }
         rows = rows.map { r in  // Aider keeps its history inside the repo
             let f = r.path + "/.aider.chat.history.md"
@@ -287,7 +291,7 @@ enum Backend {
             var u = r.used
             let t = mtime(f)
             u[.aider] = t
-            return Project(path: r.path, lastActive: r.seen ? max(r.lastActive, t) : t, live: r.live, used: u)
+            return Project(path: r.path, lastActive: r.seen ? max(r.lastActive, t) : t, liveTools: r.liveTools, used: u)
         }
         rows.sort { ($0.seen ? 1 : 0, $0.lastActive) > ($1.seen ? 1 : 0, $1.lastActive) }
         return rows
@@ -571,8 +575,11 @@ struct ContentView: View {
         }
     }
 
-    func openSelected(_ ids: Set<String>) {
-        guard let p = m.projects.first(where: { ids.contains($0.id) }) else { return }
+    /// True when the chosen tool already runs in this project (terminal opens only): Open is held back until "Open anyway".
+    func isGuarded(_ p: Project) -> Bool { isTerminal && p.liveTools.contains(tool) }
+
+    func openSelected(_ ids: Set<String>, anyway: Bool = false) {
+        guard let p = m.projects.first(where: { ids.contains($0.id) }), anyway || !isGuarded(p) else { return }
         switch dest {
         case .term(let t): m.open(p, ai: tool, mode: mode, app: t)
         case .app(let e): m.openEditor(p, editor: e)
@@ -662,9 +669,17 @@ struct ContentView: View {
                     }
                     Spacer()
                     Button("Open") { openSelected(sel) }
-                        .keyboardShortcut(.defaultAction).controlSize(.large).disabled(sel.isEmpty)
+                        .keyboardShortcut(.defaultAction).controlSize(.large).disabled(sel.isEmpty || selected.map(isGuarded) == true)
                 }
-                Text(sel.isEmpty ? "Select a project above." : hint).font(.caption).foregroundStyle(.secondary)
+                if let p = selected, isGuarded(p) {
+                    HStack(spacing: 6) {
+                        Text("\(tool.rawValue) is already running here.").foregroundStyle(.orange)
+                        Button("Open anyway") { openSelected(sel, anyway: true) }.buttonStyle(.link)
+                    }
+                    .font(.caption)
+                } else {
+                    Text(sel.isEmpty ? "Select a project above." : hint).font(.caption).foregroundStyle(.secondary)
+                }
             }
             .padding(12)
         }
@@ -684,7 +699,7 @@ struct MomoHopApp: App {
         if CommandLine.arguments.contains("--dump") {  // debug: print what the list would contain, then quit
             let df = ISO8601DateFormatter()
             for p in Backend.load(extraRoots: []) {
-                print(p.seen ? "seen " : "new  ", df.string(from: p.lastActive), p.live ? "LIVE" : "    ", p.used.keys.map(\.rawValue).sorted().joined(separator: ","), p.folder)
+                print(p.seen ? "seen " : "new  ", df.string(from: p.lastActive), p.live ? "LIVE(" + p.liveTools.map(\.rawValue).sorted().joined(separator: ",") + ")" : "    ", p.used.keys.map(\.rawValue).sorted().joined(separator: ","), p.folder)
             }
             print("tools:", Backend.installedTools().map(\.rawValue).sorted())
             exit(0)
