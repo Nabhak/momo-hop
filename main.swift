@@ -788,18 +788,18 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Text("Open")
-                    if isTerminal && m.tools.count > 1 {
-                        Text("with")
-                        Picker("", selection: Binding(get: { tool }, set: { toolRaw = $0.rawValue })) {
-                            ForEach(m.tools) { Text($0.rawValue).tag($0) }
-                        }
-                        .labelsHidden().pickerStyle(.menu).fixedSize()
-                    }
                     if termDests.count + appDests.count > 1 {
                         Text("in")
                         Picker("", selection: Binding(get: { dest }, set: { destRaw = $0.id })) {
                             Section("Terminal") { ForEach(termDests) { Text($0.label).tag($0) } }
                             if !appDests.isEmpty { Section("App") { ForEach(appDests) { Text($0.label).tag($0) } } }
+                        }
+                        .labelsHidden().pickerStyle(.menu).fixedSize()
+                    }
+                    if isTerminal && m.tools.count > 1 {
+                        Text("with")
+                        Picker("", selection: Binding(get: { tool }, set: { toolRaw = $0.rawValue })) {
+                            ForEach(m.tools) { Text($0.rawValue).tag($0) }
                         }
                         .labelsHidden().pickerStyle(.menu).fixedSize()
                     }
