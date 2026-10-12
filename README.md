@@ -28,6 +28,7 @@ Momo Hop turns that into: **pick a project, press Enter.**
 
 - **One list for all your AI tools.** Built from each tool's own history. Each row shows which tools you used there, and when.
 - **Choose how to open it.** Which tool, which terminal or app, and whether to continue the last chat, recap it, or start fresh.
+- **Open several at once.** Shift- or Cmd-click to select a few projects, press Open, and each gets its own tab.
 - **Remembers your choices.** Hides tools you don't have installed.
 - **Private.** Everything is read locally. No network, no accounts, no analytics.
 

@@ -445,6 +445,59 @@ enum Launcher {
     }
 }
 
+/// Multi-open rules, free of UI so they can be tested on their own.
+enum Batch {
+    /// Opening more projects than this asks first.
+    static let confirmAbove = 8
+    /// Pause between launches so Ghostty / Terminal create each tab reliably.
+    static let gap: Duration = .milliseconds(400)
+
+    /// Text and buttons of a confirmation sheet; the first button is always Cancel.
+    struct Sheet: Equatable { let title: String, info: String, buttons: [String] }
+    enum Next: Equatable { case launch, ask(Sheet) }
+
+    static func bigSheet(count: Int) -> Sheet {
+        Sheet(title: "Open \(count) projects?", info: "Each one opens in its own tab.", buttons: ["Cancel", "Open All"])
+    }
+    /// `running` = names of the selected projects where the tool already runs, `total` = how many are selected.
+    static func runningSheet(tool: String, running: [String], total: Int) -> Sheet {
+        if total == 1 {
+            return Sheet(title: "\(tool) is already running in \(running[0])", info: "Open another session anyway?", buttons: ["Cancel", "Open Anyway"])
+        }
+        return Sheet(title: "\(tool) is already running in \(running.count) of \(total) projects",
+                     info: "Open them anyway, or only the others?",
+                     buttons: ["Cancel"] + (running.count < total ? ["Open Others"] : []) + ["Open All"])
+    }
+    /// Launch straight away, or ask because the tool is already running somewhere in the selection.
+    static func next(tool: String, targets: [Project], running: [Project], skipConfirm: Bool) -> Next {
+        if skipConfirm || running.isEmpty { return .launch }
+        return .ask(runningSheet(tool: tool, running: running.map(\.name), total: targets.count))
+    }
+    /// Projects to open for the button the user chose on the running sheet.
+    static func pick(_ button: String, targets: [Project], running: [Project]) -> [Project] {
+        button == "Open Others" ? targets.filter { t in !running.contains { $0.id == t.id } } : targets
+    }
+    /// Caption under the Open button when several projects are selected.
+    static func status(count: Int, running: Int, tool: String) -> String {
+        "\(count) projects selected" + (running > 0 ? " · \(running) already running \(tool)" : "")
+    }
+    /// Launches in order with `gap` between launches (none after the last). A failure doesn't stop the rest.
+    /// Returns (project name, message) for each failure.
+    static func run(_ ps: [Project], gap: Duration = Batch.gap, launch: (Project) async -> String?) async -> [(String, String)] {
+        var failures: [(String, String)] = []
+        for (i, p) in ps.enumerated() {
+            if i > 0 { try? await Task.sleep(for: gap) }
+            if let e = await launch(p) { failures.append((p.name, e)) }
+        }
+        return failures
+    }
+    /// One project: the plain message. Several: which ones failed, one per line.
+    static func errorText(_ failures: [(String, String)], total: Int) -> String {
+        if total == 1, let f = failures.first { return f.1 }
+        return "Could not open \(failures.count) of \(total):" + failures.map { "\n• \($0.0): \($0.1)" }.joined()
+    }
+}
+
 // MARK: - UI
 let accent = Color(red: 0.94, green: 0.38, blue: 0.23)  // matches the app icon
 
@@ -454,6 +507,7 @@ final class Model: ObservableObject {
     @Published var tools: [AI] = [.claude]
     @Published var error: String?
     @Published var loading = true
+    @Published var opening = false  // a batch is being launched
 
     func load(extraRoots: [String]) {
         loading = true
@@ -470,22 +524,36 @@ final class Model: ObservableObject {
         }
     }
 
-    func openEditor(_ p: Project, editor: Editor) {
-        guard let url = editor.url else { error = "\(editor.rawValue) is not installed."; return }
+    /// Opens the folder in an editor / app. Returns an error message, or nil on success.
+    func openEditor(_ p: Project, editor: Editor) async -> String? {
+        guard let url = editor.url else { return "\(editor.rawValue) is not installed." }
         if editor == .codexApp {  // documented deep link: new chat in that workspace
             let enc = p.path.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? p.path
-            if let link = URL(string: "codex://threads/new?path=" + enc) { NSWorkspace.shared.open(link); NSApp.terminate(nil) }
-            return
+            guard let link = URL(string: "codex://threads/new?path=" + enc), NSWorkspace.shared.open(link) else { return "Could not open \(editor.rawValue)." }
+            return nil
         }
-        NSWorkspace.shared.open([URL(fileURLWithPath: p.path)], withApplicationAt: url, configuration: NSWorkspace.OpenConfiguration()) { _, err in
-            DispatchQueue.main.async {
-                if let err { self.error = "Could not open \(editor.rawValue): \(err.localizedDescription)" } else { NSApp.terminate(nil) }
+        return await withCheckedContinuation { done in
+            NSWorkspace.shared.open([URL(fileURLWithPath: p.path)], withApplicationAt: url, configuration: NSWorkspace.OpenConfiguration()) { _, err in
+                done.resume(returning: err.map { "Could not open \(editor.rawValue): \($0.localizedDescription)" })
             }
         }
     }
 
-    func open(_ p: Project, ai: AI, mode: Mode, app: TermApp) {
-        if let e = Launcher.open(p, ai: ai, mode: mode, app: app) { error = e } else { NSApp.terminate(nil) }
+    /// Opens each project in turn, then quits the app once. If any launch failed the app stays open and lists the failures.
+    func open(_ ps: [Project], dest: Dest, ai: AI, mode: Mode) {
+        guard !opening, !ps.isEmpty else { return }
+        opening = true
+        error = nil
+        Task {
+            let failures = await Batch.run(ps) { p in
+                switch dest {
+                case .term(let t): return Launcher.open(p, ai: ai, mode: mode, app: t)  // AppleScript (Ghostty) must stay on the main thread
+                case .app(let e): return await self.openEditor(p, editor: e)
+                }
+            }
+            opening = false
+            if failures.isEmpty { NSApp.terminate(nil) } else { error = Batch.errorText(failures, total: ps.count) }
+        }
     }
 }
 
@@ -587,10 +655,11 @@ struct ContentView: View {
         let q = query.trimmingCharacters(in: .whitespaces)
         return q.isEmpty ? m.projects : m.projects.filter { $0.name.localizedCaseInsensitiveContains(q) || $0.path.localizedCaseInsensitiveContains(q) }
     }
-    var selected: Project? { m.projects.first { sel.contains($0.id) } }
+    /// Selected projects that are on screen, in list order (the list is already sorted Recent first).
+    var picked: [Project] { filtered.filter { sel.contains($0.id) } }
     var hint: String {
         if !isTerminal { return "Opens the folder in \(dest.label)." }
-        if let p = selected, mode != .fresh, Launcher.command(p, ai: tool, mode: mode) == tool.cli {
+        if let p = picked.first, mode != .fresh, Launcher.command(p, ai: tool, mode: mode) == tool.cli {
             return "No earlier \(tool.rawValue) session here: starts a clean one."
         }
         switch mode {
@@ -602,26 +671,43 @@ struct ContentView: View {
 
     /// True when the chosen tool already runs in this project (terminal opens only): Open asks first, unless "Don't ask me again" was chosen.
     func isGuarded(_ p: Project) -> Bool { isTerminal && p.liveTools.contains(tool) }
-    var guarded: Bool { selected.map(isGuarded) ?? false }
 
-    func openSelected(_ ids: Set<String>, anyway: Bool = false) {
-        guard let p = m.projects.first(where: { ids.contains($0.id) }) else { return }
-        if !anyway && !skipRunningConfirm && isGuarded(p) { confirmOpen(p, ids); return }
-        switch dest {
-        case .term(let t): m.open(p, ai: tool, mode: mode, app: t)
-        case .app(let e): m.openEditor(p, editor: e)
+    /// Opens every project in `ids` (list order). Asks first for a big batch, then if the tool already runs in some of them.
+    func openSelected(_ ids: Set<String>) {
+        let ps = filtered.filter { ids.contains($0.id) }
+        guard !ps.isEmpty, !m.opening else { return }
+        if ps.count > Batch.confirmAbove {
+            ask(Batch.bigSheet(count: ps.count), suppression: false) { _, _ in
+                DispatchQueue.main.async { openChecked(ps) }  // let the first sheet finish closing
+            }
+        } else {
+            openChecked(ps)
         }
     }
-    /// "Already running" confirmation, as a sheet on the window. Cancel is the default (Return / Esc).
-    /// The "Don't ask me again" tick is saved only when the user goes on with Open Anyway.
-    func confirmOpen(_ p: Project, _ ids: Set<String>) {
+    func openChecked(_ ps: [Project]) {
+        let running = ps.filter(isGuarded)
+        switch Batch.next(tool: tool.rawValue, targets: ps, running: running, skipConfirm: skipRunningConfirm) {
+        case .launch: launch(ps)
+        case .ask(let sheet):
+            ask(sheet, suppression: true) { button, dontAsk in
+                if dontAsk { skipRunningConfirm = true }
+                launch(Batch.pick(button, targets: ps, running: running))
+            }
+        }
+    }
+    func launch(_ ps: [Project]) { m.open(ps, dest: dest, ai: tool, mode: mode) }
+
+    /// Confirmation sheet on the window. The first button (Cancel) is the default (Return / Esc) and does nothing.
+    /// `then` gets the title of the button chosen and the "Don't ask me again" tick (saved by the caller only when going on).
+    func ask(_ sheet: Batch.Sheet, suppression: Bool, then: @escaping (String, Bool) -> Void) {
         let alert = NSAlert()
-        alert.messageText = "\(tool.rawValue) is already running in \(p.name)"
-        alert.informativeText = "Open another session anyway?"
-        alert.addButton(withTitle: "Cancel")
-        alert.addButton(withTitle: "Open Anyway")
-        alert.showsSuppressionButton = true
-        alert.suppressionButton?.title = "Don't ask me again"
+        alert.messageText = sheet.title
+        alert.informativeText = sheet.info
+        sheet.buttons.forEach { alert.addButton(withTitle: $0) }
+        if suppression {
+            alert.showsSuppressionButton = true
+            alert.suppressionButton?.title = "Don't ask me again"
+        }
         // NSAlert re-assigns key equivalents when shown and gives Return to no button here, so Return / Enter / Esc are caught directly.
         let keys = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { e in
             guard [36, 76, 53].contains(e.keyCode), e.window == alert.window else { return e }
@@ -630,9 +716,9 @@ struct ContentView: View {
         }
         let done: (NSApplication.ModalResponse) -> Void = { r in
             if let keys { NSEvent.removeMonitor(keys) }
-            guard r == .alertSecondButtonReturn else { return }
-            if alert.suppressionButton?.state == .on { skipRunningConfirm = true }
-            openSelected(ids, anyway: true)
+            let i = r.rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+            guard i > 0, i < sheet.buttons.count else { return }
+            then(sheet.buttons[i], alert.suppressionButton?.state == .on)
         }
         if let w = NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first(where: \.isVisible) {
             alert.beginSheetModal(for: w, completionHandler: done)
@@ -725,13 +811,16 @@ struct ContentView: View {
                         .labelsHidden().pickerStyle(.menu).fixedSize()
                     }
                     Spacer()
-                    Button("Open") { openSelected(sel) }
-                        .keyboardShortcut(.defaultAction).controlSize(.large).disabled(sel.isEmpty)
+                    Button(picked.count > 1 ? "Open \(picked.count)" : "Open") { openSelected(sel) }
+                        .keyboardShortcut(.defaultAction).controlSize(.large).disabled(picked.isEmpty || m.opening)
                 }
                 // Status line: always one caption line, so the bar keeps its height in every state.
                 HStack(spacing: 6) {
-                    if guarded { RunningDot() }
-                    Text(guarded ? "\(tool.rawValue) is already running here." : sel.isEmpty ? "Select a project above." : hint)
+                    let running = picked.filter(isGuarded).count
+                    if running > 0 { RunningDot() }
+                    Text(picked.isEmpty ? "Select a project above."
+                         : picked.count > 1 ? Batch.status(count: picked.count, running: running, tool: tool.rawValue)
+                         : running > 0 ? "\(tool.rawValue) is already running here." : hint)
                 }
                 .font(.caption).foregroundStyle(.secondary)
             }
