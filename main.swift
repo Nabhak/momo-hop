@@ -489,6 +489,11 @@ final class Model: ObservableObject {
     }
 }
 
+/// The green "running" dot, shared by the row badge and the Open bar status line.
+struct RunningDot: View {
+    var body: some View { Circle().fill(.green).frame(width: 6, height: 6) }
+}
+
 /// "Running" pill: green dot + label on a faint green capsule, same size family as the tool tags.
 /// On a selected row (accent highlight behind) it turns into a translucent white pill with white text, like the tags.
 struct RunningBadge: View {
@@ -498,7 +503,7 @@ struct RunningBadge: View {
         let onAccent = prominence == .increased
         let ink = Color(nsColor: .alternateSelectedControlTextColor)
         HStack(spacing: 4) {
-            Circle().fill(.green).frame(width: 6, height: 6)
+            RunningDot()
                 .background { if onAccent { Circle().fill(ink).padding(-1) } }  // white rim keeps the green dot visible on blue
             Text("Running")
         }
@@ -594,8 +599,9 @@ struct ContentView: View {
         }
     }
 
-    /// True when the chosen tool already runs in this project (terminal opens only): Open is held back until "Open anyway".
+    /// True when the chosen tool already runs in this project (terminal opens only): Open is held back until "Open Another".
     func isGuarded(_ p: Project) -> Bool { isTerminal && p.liveTools.contains(tool) }
+    var guarded: Bool { selected.map(isGuarded) ?? false }
 
     func openSelected(_ ids: Set<String>, anyway: Bool = false) {
         guard let p = m.projects.first(where: { ids.contains($0.id) }), anyway || !isGuarded(p) else { return }
@@ -687,22 +693,25 @@ struct ContentView: View {
                         .labelsHidden().pickerStyle(.menu).fixedSize()
                     }
                     Spacer()
-                    Button("Open") { openSelected(sel) }
-                        .keyboardShortcut(.defaultAction).controlSize(.large).disabled(sel.isEmpty || selected.map(isGuarded) == true)
-                }
-                if let p = selected, isGuarded(p) {
-                    HStack(spacing: 6) {
-                        Text("\(tool.rawValue) is already running here.").foregroundStyle(.orange)
-                        Button("Open anyway") { openSelected(sel, anyway: true) }.buttonStyle(.link)
+                    // Guarded: the slot holds a plain (non-default) "Open Another", so Return / double-click never start a second session.
+                    if guarded {
+                        Button("Open Another") { openSelected(sel, anyway: true) }
+                            .controlSize(.large).fixedSize().help("Start a second \(tool.rawValue) session in this folder")
+                    } else {
+                        Button("Open") { openSelected(sel) }
+                            .keyboardShortcut(.defaultAction).controlSize(.large).disabled(sel.isEmpty)
                     }
-                    .font(.caption)
-                } else {
-                    Text(sel.isEmpty ? "Select a project above." : hint).font(.caption).foregroundStyle(.secondary)
                 }
+                // Status line: always one caption line, so the bar keeps its height in every state.
+                HStack(spacing: 6) {
+                    if guarded { RunningDot() }
+                    Text(guarded ? "\(tool.rawValue) is already running in this folder." : sel.isEmpty ? "Select a project above." : hint)
+                }
+                .font(.caption).foregroundStyle(.secondary)
             }
             .padding(12)
         }
-        .frame(minWidth: 640, minHeight: 480)
+        .frame(minWidth: 680, minHeight: 480)  // 680: room for "Open Another" next to the longest sentence
         .tint(accent)
         .task {
             Launcher.sweepTemp()
